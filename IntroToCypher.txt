@@ -1,0 +1,467 @@
+INTRODUCTION:
+
+ 
+
+Graph data looks to be increasing in importance with the growth of: social network analysis, telecommunications analytics, diagnostic aids and personalized medicine, ontologies, routing protocolas, and manufacturing and process optimization. 
+
+ 
+
+Perhaps the easiest and most intuitive way I found to get a feel for graph workflows is via Cypher, a “SQL-like” query language for graphs. 
+
+ 
+
+The GraphBuilder team at Intel is using a similar approach in working with AllegroGraph; they are using RDF to store the graphs and performing the querying via, e.g. Prolog. 
+
+ 
+
+ 
+
+BASIC CONCEPTS: Graphs
+
+ 
+
+1.       A graph consists of a number of nodes/vertices (the circles) and relationships/edges (the arrows between the circles). 
+
+ 
+
+2.       Vertices _can_ exist in isolation – it is not required for every vertex to encounter an edge. 
+
+ 
+
+3.       Edges _cannot_ exist in isolation – each edge must originate from, and terminate on, a vertex.  (The origin and terminus may be the same vertex.) 
+
+ 
+
+ 
+
+ 
+
+BASIC CONCEPTS: “Cypher”
+
+ 
+
+1.       Cypher is a “Pattern Matching” language
+
+ 
+
+2.       Each query essentially asks: Within the entire graph we have stored on disk, what pieces “look like” this? 
+
+ 
+
+3.       Queries are “drawn out” in the language:
+
+ 
+
+·         the circles for the nodes are drawn as: ( )
+
+·         the edges are drawn as: -->
+
+                 Please Note:  All edges must have a “type”
+
+ 
+
+4.       Both nodes and edges can have labels:
+
+·         a node labeled “a”:    (a)
+
+·         an edge labeled “e”:   -[e]->
+
+ 
+
+SYNTAX PATTERN:
+
+ 
+
+Cypher is a declarative pattern-matching language.
+
+ 
+
+In the “Circles and Arrows notation”. . .  “Match two nodes that are related in any way” is written:
+
+(a) --> (b)
+
+ 
+
+ 
+
+The complete Cypher query is expressed by the set of nodes from which to start, the pattern to match, and what to return:
+
+ 
+
+START a=node(*)
+
+MATCH (a)-->(b)
+
+RETURN a, b;
+
+ 
+
+ 
+
+Please do keep in mind . . .
+
+ 
+
+CONSTRAINT: Every *relationship* has to have a type!
+
+CONSTRAINT: Every *relationship* has to be grounded in concrete nodes
+
+            (but, not every node needs to be involved in a relationship)
+
+ 
+
+ 
+
+ 
+
+To find the relationship names:
+
+(a)–[r]->(b)
+
+RETURN type(r)
+
+ 
+
+ 
+
+EXAMPLES on a “movies” dataset
+
+·         neo4j-sh (?)$ START a=node(*) MATCH (a) -[:ACTED_IN]->(m) RETURN a.name, m.title;
+
+==> +--------------------------------------------------------------+
+==> | a.name                   | m.title                           |
+==> +--------------------------------------------------------------+
+==> | "Keanu Reeves"           | "Something's Gotta Give"          |
+==> | "Keanu Reeves"           | "Johnny Mnemonic"                 |
+==> | "Keanu Reeves"           | "The Replacements"                |
+==> | "Keanu Reeves"           | "The Devil's Advocate"            |
+==> | "Keanu Reeves"           | "The Matrix Revolutions"          |
+==> | "Keanu Reeves"           | "The Matrix Reloaded"             |
+==> | "Keanu Reeves"           | "The Matrix"                      |
+==> | "Carrie-Anne Moss"       | "The Matrix Revolutions"          |
+==> | "Carrie-Anne Moss"       | "The Matrix Reloaded"             |
+==> | "Carrie-Anne Moss"       | "The Matrix"                      |
+==> | "Laurence Fishburne"     | "The Matrix Revolutions"          |
+==> | "Laurence Fishburne"     | "The Matrix Reloaded"             |
+==> | "Laurence Fishburne"     | "The Matrix"                      |
+==> | "Hugo Weaving"           | "V for Vendetta"                  |
+==> | "Hugo Weaving"           | "Cloud Atlas"                     |
+==> | "Hugo Weaving"           | "The Matrix Revolutions"          |
+==> | "Hugo Weaving"           | "The Matrix Reloaded"             |
+==> | "Hugo Weaving"           | "The Matrix"                      |
+
+ 
+
+Similarly:
+
+ 
+
+START a=node(*)  MATCH (a) -[r:ACTED_IN]->(m)  RETURN a.name, r.roles, m.title;
+
+START a=node(*)  MATCH (a) -[r1:ACTED_IN]->(m)<-[r2:DIRECTED]-(p)  RETURN a.name, m.title;
+
+ 
+
+ 
+
+And again, as with SQL we can format with “column aliases” for explanations . . . 
+
+ 
+
+START a=node(*)  MATCH (a) -[r1:ACTED_IN]->(m)<-[r2:DIRECTED]-(p)  RETURN a.name AS actor, m.title AS movie;
+
+START a=node(*)  MATCH (a) -[r1:ACTED_IN]->(m), (m)<-[r2:DIRECTED]-(d)  RETURN a.name AS actor, m.title AS movie;
+
+ 
+
+Note that we can assign a var to, and return the PATHS:
+
+START a=node(*)  MATCH p=(a)-[r1:ACTED_IN]->(m), (m)<-[r2:DIRECTED]-(d)  RETURN p;
+
+ 
+
+Also get the nodes:
+
+START a=node(*)  MATCH p1=(a)-[r1:ACTED_IN]->(m), p2=(m)<-[r2:DIRECTED]-(d)  RETURN a.name, d.name, count(*);
+
+ 
+
+Which directors have cast themselves?:
+
+START x=node(*)  MATCH p1=(x)-[r1:ACTED_IN]->(m), p2=(m)<-[r2:DIRECTED]-(x)  RETURN x.name AS directors_who_cast_themselves_to_act_in_their_own_movies;
+
+ 
+
+ 
+
+Standard query results sorters and limiters include: count() min() max)
+
+ 
+
+START x=node(*)  MATCH p1=(x)-[r1:ACTED_IN]->(m), p2=(m)<-[r2:DIRECTED]-(x)  RETURN x.name AS directors_who_cast_themselves_to_act_in_their_own_movies ORDER BY(x.name) DESC LIMIT 5;
+
+ 
+
+ 
+
+Collect will collate things into arrays . . . 
+
+ 
+
+START a=node(*)
+
+MATCH (a)-[:ACTED_IN]->(m)<-[:DIRECTED]-(d)
+
+RETURN DISTINCT a.name, d.name, collect(m.title);
+
+ 
+
+ 
+
+IMPROVEMENTS:
+
+ 
+
+For efficiency, index!  (Any valid Leucene expression can go in the ()’s
+
+START tom=node:node_auto_index(name="Tom Hanks")
+
+RETURN tom;
+
+ 
+
+START tom=node:node_auto_index(name="Tom Hanks")
+
+MATCH (tom)-[:ACTED_IN]->(movie)
+
+RETURN movie.title
+
+ 
+
+Rebuilding an index can be complex-- _can_ add an index later, but . . .
+
+ 
+
+[As always: The more specific our start point, the better the performance!]
+
+ 
+
+ 
+
+START tom=node:node_auto_index(name="Tom Hanks"), kevin=node:node_auto_index(name="Kevin Bacon")
+
+MATCH (tom)-[:ACTED_IN]->(movie)<-[:ACTED_IN]-(kevin)
+
+RETURN DISTINCT movie.title
+
+ 
+
+START tom=node:node_auto_index(name="Tom Hanks"), kevin=node:node_auto_index(name="Kevin Bacon")
+
+MATCH (tom)-[:ACTED_IN]->(movie)<-[:ACTED_IN]-(kevin)
+
+WHERE movie.released < 2013
+
+RETURN DISTINCT movie.title
+
+ 
+
+ 
+
+Please note that WHERE is inefficient, because it is a view mask over the result set. 
+
+As early as possible, get the restrictions in. . .  “upstream” . . .  ! 
+
+ 
+
+START actor=node:node_auto_index(name='Keanu Reeves')
+
+MATCH (actor)-[r:ACTED_IN]->(movie)
+
+WHERE 'Neo' IN r.roles
+
+RETURN DISTINCT movie.title, actor.role;
+
+ 
+
+START actor=node:node_auto_index(name='Keanu Reeves')
+
+MATCH (actor)-[r:ACTED_IN]->(movie)
+
+WHERE 'Neo' IN r.roles
+
+RETURN DISTINCT movie.title, LAST(r.roles);
+
+ 
+
+(We can take apart the array with the LAST() operator)
+
+ 
+
+ 
+
+Again, we want to move things from WHERE to MATCH, and from MATCH to START, wherever possible! 
+
+ 
+
+START actor=node:node_auto_index(name='Clint Eastwood')
+
+MATCH (actor)-[r:ACTED_IN]->(movie),
+
+      (actor)-[:DIRECTED]->()
+
+RETURN DISTINCT movie.title, LAST(r.roles);
+
+ 
+
+ 
+
+Which actors have done the most movies? 
+
+ 
+
+START actor=node(*)
+
+MATCH (actor)-[r:ACTED_IN]->(movies_acted_in)
+
+RETURN DISTINCT actor.name count(movies_acted_in)
+
+ORDER count(movies_acted_in) DESC
+
+LIMIT 5;
+
+ 
+
+ 
+
+Suppose we want to add nodes?
+
+ 
+
+Very straightforward:
+
+ 
+
+CREATE ({title:”Mystic River”, release:1993});
+
+ 
+
+·         START movie=node:node_auto_index(title='Mystic River')
+
+·         > SET movie.tagline = 'We bury our sins here, Dave.'
+
+·         > RETURN movie;
+
+·          
+
+·         START movie=node:node_auto_index(title='Mystic River'), kevin= node:node_auto_index(name='Kevin Bacon') CREATE UNIQUE (kevin)-[:ACTED_IN {roles:["Sean"]}]->(movie);
+
+·          
+
+ 
+
+--------------------------------------------Take-Aways-----------------------------------------
+
+ 
+
+THINGS TO KEEP IN MIND:
+
+Minimizing traversals when possible will help to improve performance. . .
+
+Op “find all friends of” is very fast, because all of that data is “hanging off of” one node. 
+
+ 
+
+SuperNode concept: Types or categories
+
+HyperEdge concept: Analogous / parallel
+
+ 
+
+ 
+
+THINGS THAT ARE FAST:
+
+Uninode-based fetches, linear traversals
+
+ 
+
+ 
+
+THINGS THAT ARE SLOW:
+
+Supernodes, hyper-edges / anything starting from “n=node(*) X n=node(*) or etc. ”
+
+ 
+
+--------------------------------------------Take-Aways-----------------------------------------
+
+ 
+
+ 
+
+If you are interested in experimenting on your own . . .
+
+ 
+
+HOW TO START UP YOUR OWN ‘Toy Problem’ GRAPH WORKFLOW: (Windows)
+
+ 
+
+[1] Download the “community edition” of Neo4j
+
+[2] Run:  \bin\neo4j start
+
+[3] GoTo: http://localhost:7474
+
+[4] Open the “Powertool Console” tab
+
+[5] Type: START n=node(1)  RETURN n;
+
+ 
+
+Make sure the ‘sample content’ is in  \data\graph.db. 
+
+ 
+
+You should see this:
+
+·          
+
+·         ==> +-------------------------------------------------------------------------------+
+
+·         ==> | n                                                                             |
+
+·         ==> +-------------------------------------------------------------------------------+
+
+·         ==> | Node[1]{title:"The Matrix",released:1999,tagline:"Welcome to the Real World"} |
+
+·         ==> +-------------------------------------------------------------------------------+
+
+·         ==> 1 row
+
+·         ==> 
+
+·         ==> 394 ms
+
+·         neo4j-sh (?)$ 
+
+ 
+
+·         CAVEAT:  I’m more used to Mac dev so I may not be able to help with Windows-specific installation glitches
+
+·         ANTI-CAVEAT:  I did get all of this to work on my own Intel Windows laptop, and all of the queries in this email have been tested there, so they should all work for you
+
+ 
+
+ 
+
+ 
+
+ 
+
+This content is Public Domain / ‘Intel-Public’ -- (Constructed from material publicly available on the Neo4j website, Neo4j tutorials, etc.)
+
+ 
+
+ 
