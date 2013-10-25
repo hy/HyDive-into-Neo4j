@@ -1,0 +1,61 @@
+
+Max graph (s-a) storage capacities in the Neo4j scheme are currently around:
+ 
+·         2^35 nodes
+
+·         2^35 relationships
+
+·         2^36 property records
+
+ 
+It is possible to see noticeable impact in read overhead at ~10's of properties per node. . . but, nothing “breaks” until > 1 million properties per node
+ 
+ 
+ 
+Essentially, the basic tricks here are:
+·         To use fixed-byte fields with known pointer offsets
+
+·         To store doubly-linked lists of edges-per-node
+
+o   This transforms [create / destroy / update] into “in-place” operations
+
+·         To keep all traversals in main memory
+
+o   Obviously this prevents swapping etc. 
+
+·         Extend this model with a sharded cache
+
+ 
+ 
+ 
+More details to follow . . .
+ 
+ 
+Caching Strategy:
+ 
+Cache equally-sized regions of even numbers of records
+ 
+·         Regions are evicted on a LFU policy
+
+·         Regions are built to use OS mmap
+
+ 
+Bottom Line: Neo4j has tried CARD cache, have not tried LRD cache, currently use LFU cache expiry policy.  (LRD would take freq. + time into consideration so poss. a future consideration)
+ 
+ 
+In the Object Cache:
+ 
+·         The relation table stores ID of start and end nodes
+
+·         A node table stores everything else (for efficient traversal) centered around relation ID's
+
+ 
+(i.e. everything in the cache is the DUAL of the linked list representation in the first representation)
+ 
+ 
+Indexing:
+ 
+Indexing is done by node property names, but nothing internal to the structure itself
+ 
+ 
+ 
