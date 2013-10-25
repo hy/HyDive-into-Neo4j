@@ -1,4 +1,3 @@
-
 [SUMMARY: CYPHER EXECUTION PLAN CONSTUCTION]
  
 Cypher queries describe a target pattern, in an as-SQL-like-as-possible syntax. . .  of course, this declarative-syntax pattern must then be transformed into an ‘execution plan’ to actually retrieve the information from the db. 
