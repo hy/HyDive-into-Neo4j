@@ -1,0 +1,72 @@
+
+[SUMMARY: CYPHER EXECUTION PLAN CONSTUCTION]
+ 
+Cypher queries describe a target pattern, in an as-SQL-like-as-possible syntax. . .  of course, this declarative-syntax pattern must then be transformed into an ‘execution plan’ to actually retrieve the information from the db. 
+ 
+Here are the steps in that process:
+ 
+[1] Parse the query via a Parboil parser which translates the query string into an expression tree (specifically, an Abstract Syntax Tree)
+ 
+[2] Validate the query by doing semantic checking on the Abstract Syntax Tree (i.e.  If you have id'ed something as node, can't use it as a relationship or etc.)
+ 
+[3] An additional pass rewrites the query, performing the following ops: 
+  (1) Move predicates from MATCH to WHERE
+  (2) Remove aliases
+  (3) Cache expressions where possible (if you are using the same pattern in WHERE and SORT BY, they will store it)
+  (4) Resolve key tokens
+  (5) Mark optional parts as optional (for instance "find all nodes reachable from A, written (a)-->(b), may not find any b's, so that b is "optional" and is marked as such
+ 
+ 
+[4] Build the execution plan mapping an AST to a PSQ (Partially Solved Query).  A PSQ has "check boxes" for each piece of the query that has (as yet) been resolved.
+ 
+Execution plans are pipes.  (An iterator feeding off of an iterator. . . ) 
+ 
+EX: ‘START’ is an iterator that produces an execution context (physical operations used to resolve the logical operation specified)
+ 
+ 
+Please Note:
+Pipes are the building blocks of execution plans -- Pipes are stateless and re-useable so that an execution plan can be copied and parallelized. 
+ 
+Planbuilders are typically scala partial-functions -- e.g. def canWorkWith(PSQ, Pipe): Boolean
+ 
+ 
+Next:
+Ask all the plan builders: "Hey can you do something with this?"
+Plan builders have priorities. . .  Choose the one with lowest priority, which takes a tuple of (PSQ, Pipe) and produces a tuple of (PSQ[v2], Pipe[v2])
+ 
+Loop planbuilder apply() until the query is fully resolved
+As long as any planbuilder can move the query forward, iterate. 
+If no one can help, but checkboxes remain un-checked, throw an exception and fail the query
+ 
+ 
+Then:
+Find unbound patterns and bind them [Disconnected patterns lead to cartesian joins]
+ 
+Decide on which matcher to use
+  There are three matchers (i.e. fast, faster, and "I handle all patterns")
+ 
+Filter the results (look at the WHERE predicates and make sure all results return true) (some may go away: the index matcher may mark that as solved)
+ 
+Solve updates (insert pipes to do the creates, deletes and removes
+ 
+Solve chaining (unwind "with" clauses) (aggregation, ordering, slice, lazy/eager) <-- have to watch to make sure you're not reading your own writes, so make the first read "greedy / eager" (ORDER BY makes reading "eager")
+ 
+ 
+[5] Insert into plan cache
+ 
+Please Note:
+Execution plans are stateless, so can be used over and over between threads, concurrently
+ 
+Cache invalidation happens on every schema change (e.g. if you change your indexing or etc.) so that is something to be careful about. 
+ 
+ 
+ 
+EX: execution plan for MATCH (joe:person)
+ 
+SchemaIndex(id="joe" label="person" query="literal(joe)" property="name)
+-->
+PatternMatch(g="(joe)-->(friend)")
+--->
+ColumnFilter(returnItenNames=["friend'])
+ 
+ 
